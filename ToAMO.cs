@@ -342,7 +342,12 @@ namespace TOMtoAMO
                     }
                 }
                 #endregion
-                
+
+                //Add sort by columns
+                foreach (TOM.Column TOMColumn in TOMTable.Columns)
+                    if (TOMColumn.SortByColumn != null)
+                        AMODatabase.Dimensions[TOMTable.Name].Attributes[TOMColumn.Name].OrderByAttributeID = TOMColumn.SortByColumn.Name;
+
                 #region Add Hierarchies
                 foreach (TOM.Hierarchy TOMHierarchy in TOMTable.Hierarchies)
                 {

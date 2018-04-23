@@ -1,20 +1,28 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
+using System.Text.RegularExpressions;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using TOMtoAMO.Parsing;
 using AMO = Microsoft.AnalysisServices;
 using TOM = Microsoft.AnalysisServices.Tabular;
 namespace TOMtoAMO
 {
     public static class ToTOM
     {
+
+
+        public const string MeasurePattern = @"\b(?<createMeasure>create\s+measure)\s+(?<tableName>(\w+|'(\w|\s+\w)+?'))\[(?<measureName>(\w+|(\w|\s+\w)+?))\]\s*=(?<commandTypeExpression>(((?<doubleQuote>" + "\"" + @")(?:\\\k<doubleQuote>|.)*?\k<doubleQuote>)|&lt;|&gt;|&quot;|&amp;|.|\n)*?);";
+
+        public const string MemberPattern = @"\b(?<createMember>create\s+member)\s+(?<memberFullName>(?<cubeName>(currentcube|\w+|(\[.*?\]))\.){0,1}(?<dimensionName>(\w+|\[.*?\])\.)(?<memberName>(\w+|\[.*?\])))\s+AS\s+(?<memberExpression>(?<singleQuote>')(?:\\\k<singleQuote>|.)*?\k<singleQuote>)\s*(?<propertyPairs>(?<propertyPair>,\s*(?<propertyName>\w+)\s*=\s*(?<propertyValue>(\w+|(?<singleQuote>')(?:\\\k<singleQuote>|.)*?\k<singleQuote>(\[.*?\]){0,1}))\s*)+?);";
+
+        public const string KpiPattern = @"\b(?<createKpi>create\s+kpi)\s+(?<kpiFullName>(?<cubeName>(currentcube|\w+|(\[.*?\]))\.){0,1}(?<dimensionName>(\w+|\[.*?\])\.){0,1}(?<kpiName>(\w+|\[.*?\])))\s+AS\s+(?<kpiExpression>((?<singleQuote>')(?:\\\k<singleQuote>|.)*?\k<singleQuote>|(\w+|\[.*?\])\.\[.*?\]))\s*(?<propertyPairs>(?<propertyPair>,\s*(?<propertyName>\w+)\s*=\s*(?<propertyValue>(\w+|(?<singleQuote>')(?:\\\k<singleQuote>|.)*?\k<singleQuote>(\[.*?\]){0,1}|(\w+|\[.*?\])\.\[.*?\]))\s*)+?)\s*;";
+
+        public const string ntLoginPattern = @"\A(\w+||(\w+|\.)\\\w+)\z";
+
         public static TOM.Database Database(AMO.Database AMODatabase)
         {
             TOM.Database TOMDatabase = new TOM.Database(AMODatabase.Name);
             TOMDatabase.Model = new TOM.Model();
             TOMDatabase.Model.Name = AMODatabase.Cubes[0].Name;
-
             #region DataSources
             foreach(AMO.DataSource AMODataSource in AMODatabase.DataSources)
             {
@@ -132,7 +140,7 @@ namespace TOMtoAMO
                 }
                 #endregion
                 #region Partitions
-                foreach(AMO.Partition AMOPartition in AMODatabase.Cubes[0].MeasureGroups[TOMTable.Name].Partitions)
+                foreach(AMO.Partition AMOPartition in AMODatabase.Cubes[0].MeasureGroups.GetByName(TOMTable.Name).Partitions)
                 {
                     TOM.Partition TOMPartition = new TOM.Partition();
                     TOMPartition.Source = new TOM.QueryPartitionSource
@@ -145,6 +153,34 @@ namespace TOMtoAMO
                 #endregion
             }
 
+            #region Measures
+
+
+            foreach (AMO.Command Command in AMODatabase.Cubes[0].MdxScripts[0].Commands)
+            {
+                List<MDXCommand> Commands = MDXCommandParser.GetCommands(Command.Text);
+                if (Commands.Count > 0)
+                {
+                    MDXCommand MainCommand = Commands[0];
+                    if (MainCommand.Type == CommandType.CreateMeasure)
+                    {
+                        List<MDXString> Strings = MDXCommandParser.GetStrings(MainCommand.LHS);
+                        //Throw exception if we do not have a valid CREATE MEASURE command.
+                        if (Strings.Count < 2 || Strings[0].Type != StringType.SingleQuote || Strings[1].Type != StringType.SquareBracket)
+                            throw new System.Exception("A CREATE MEASURE statement must at least have two delimited elements (one table, one measure name)");
+
+                        //First, single quoted string, is table name
+
+                        TOM.Measure TOMMeasure = new TOM.Measure
+                        {
+                            Name = Strings[1].Text,
+                            Expression = MainCommand.RHS
+                        };
+                        TOMDatabase.Model.Tables[Strings[0].Text].Measures.Add(TOMMeasure);
+                    }
+                }
+            }
+            #endregion
             return TOMDatabase;
         }
     }

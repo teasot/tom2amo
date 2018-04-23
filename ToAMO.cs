@@ -379,7 +379,7 @@ namespace TOMtoAMO
                     foreach (TOM.Measure TOMMeasure in TOMTable.Measures)
                     {
                         //Create the Command, which contains the definition of the Measure
-                        AMO.Command AMOCommand = new AMO.Command(string.Format("CREATE MEASURE '{0}'[{1}]={2};", TOMTable.Name, TOMMeasure.Name, TOMMeasure.Expression));
+                        AMO.Command AMOCommand = new AMO.Command(string.Format("CREATE MEASURE '{0}'[{1}]={2};", TOMTable.Name, TOMMeasure.Name.Replace("]", "]]"), TOMMeasure.Expression));
                         if (TOMMeasure.KPI != null)
                         {
                             #region Add KPI
@@ -391,22 +391,22 @@ namespace TOMtoAMO
                             );
                             //Goal/Target
                             if (!string.IsNullOrWhiteSpace(TOMMeasure.KPI.TargetExpression)) {
-                                AMOCommand.Text += Environment.NewLine + string.Format(string.Format("CREATE MEASURE '{0}'[_{1} Goal]={2};", TOMTable.Name, TOMMeasure.Name, TOMMeasure.KPI.TargetExpression));
-                                FinalKPICreate += string.Format(", GOAL = Measures.[_{0} Goal]", TOMMeasure.Name);
+                                AMOCommand.Text += Environment.NewLine + string.Format(string.Format("CREATE MEASURE '{0}'[_{1} Goal]={2};", TOMTable.Name, TOMMeasure.Name.Replace("]", "]]"), TOMMeasure.KPI.TargetExpression));
+                                FinalKPICreate += string.Format(", GOAL = Measures.[_{0} Goal]", TOMMeasure.Name.Replace("]", "]]"));
                             }
 
                             //Status
                             if (!string.IsNullOrWhiteSpace(TOMMeasure.KPI.StatusExpression)) {
-                                AMOCommand.Text += Environment.NewLine + string.Format(string.Format("CREATE MEASURE '{0}'[_{1} Status]={2};", TOMTable.Name, TOMMeasure.Name, TOMMeasure.KPI.StatusExpression));
-                                FinalKPICreate += string.Format(", STATUS = Measures.[_{0} Status]", TOMMeasure.Name);
+                                AMOCommand.Text += Environment.NewLine + string.Format(string.Format("CREATE MEASURE '{0}'[_{1} Status]={2};", TOMTable.Name, TOMMeasure.Name.Replace("]", "]]"), TOMMeasure.KPI.StatusExpression));
+                                FinalKPICreate += string.Format(", STATUS = Measures.[_{0} Status]", TOMMeasure.Name.Replace("]", "]]"));
                                 if (!string.IsNullOrWhiteSpace(TOMMeasure.KPI.StatusGraphic))
                                     FinalKPICreate += string.Format(", STATUS_GRAPHIC = '{0}'", TOMMeasure.KPI.StatusGraphic);
                             }
                             
                             //Trend
                             if (!string.IsNullOrWhiteSpace(TOMMeasure.KPI.TrendExpression)) {
-                                AMOCommand.Text += Environment.NewLine + string.Format(string.Format("CREATE MEASURE '{0}'[_{1} Trend]={2};", TOMTable.Name, TOMMeasure.Name, TOMMeasure.KPI.TrendExpression));
-                                FinalKPICreate += string.Format(", TREND = Measures.[_{0} Trend]", TOMMeasure.Name);
+                                AMOCommand.Text += Environment.NewLine + string.Format(string.Format("CREATE MEASURE '{0}'[_{1} Trend]={2};", TOMTable.Name, TOMMeasure.Name.Replace("]", "]]"), TOMMeasure.KPI.TrendExpression));
+                                FinalKPICreate += string.Format(", TREND = Measures.[_{0} Trend]", TOMMeasure.Name.Replace("]", "]]"));
                                 if (!string.IsNullOrWhiteSpace(TOMMeasure.KPI.TrendGraphic))
                                     FinalKPICreate += string.Format(", TREND_GRAPHIC = '{0}'", TOMMeasure.KPI.TrendGraphic);
                             }
@@ -417,7 +417,7 @@ namespace TOMtoAMO
                             //Target
                             if (!string.IsNullOrWhiteSpace(TOMMeasure.KPI.TargetExpression))
                             {
-                                AMO.CalculationProperty TargetCalculationProperty = new AMO.CalculationProperty(string.Format("[_{0} Goal]", TOMMeasure.Name), AMO.CalculationType.Member);
+                                AMO.CalculationProperty TargetCalculationProperty = new AMO.CalculationProperty(string.Format("[_{0} Goal]", TOMMeasure.Name.Replace("]", "]]")), AMO.CalculationType.Member);
                                 TargetCalculationProperty.Description = TOMMeasure.KPI.TargetDescription;
                                 TargetCalculationProperty.CalculationType = AMO.CalculationType.Member;
                                 TargetCalculationProperty.Visible = false;
@@ -429,7 +429,7 @@ namespace TOMtoAMO
                             //Status
                             if (!string.IsNullOrWhiteSpace(TOMMeasure.KPI.StatusExpression))
                             {
-                                AMO.CalculationProperty StatusCalculationProperty = new AMO.CalculationProperty(string.Format("[_{0} Status]", TOMMeasure.Name), AMO.CalculationType.Member);
+                                AMO.CalculationProperty StatusCalculationProperty = new AMO.CalculationProperty(string.Format("[_{0} Status]", TOMMeasure.Name.Replace("]", "]]")), AMO.CalculationType.Member);
                                 StatusCalculationProperty.Description = TOMMeasure.KPI.StatusDescription;
                                 StatusCalculationProperty.CalculationType = AMO.CalculationType.Member;
                                 StatusCalculationProperty.Visible = false;
@@ -439,7 +439,7 @@ namespace TOMtoAMO
                             //Trend
                             if (!string.IsNullOrWhiteSpace(TOMMeasure.KPI.StatusExpression))
                             {
-                                AMO.CalculationProperty TrendCalculationProperty = new AMO.CalculationProperty(string.Format("[_{0} Trend]", TOMMeasure.Name), AMO.CalculationType.Member);
+                                AMO.CalculationProperty TrendCalculationProperty = new AMO.CalculationProperty(string.Format("[_{0} Trend]", TOMMeasure.Name.Replace("]", "]]")), AMO.CalculationType.Member);
                                 TrendCalculationProperty.Description = TOMMeasure.KPI.TrendDescription;
                                 TrendCalculationProperty.CalculationType = AMO.CalculationType.Member;
                                 TrendCalculationProperty.Visible = false;
@@ -447,7 +447,7 @@ namespace TOMtoAMO
                             }
 
                             //Create the KPI calculation property
-                            AMO.CalculationProperty KPICalculationProperty = new AMO.CalculationProperty(string.Format("KPIs.[{0}]", TOMMeasure.Name), AMO.CalculationType.Member);
+                            AMO.CalculationProperty KPICalculationProperty = new AMO.CalculationProperty(string.Format("KPIs.[{0}]", TOMMeasure.Name.Replace("]", "]]")), AMO.CalculationType.Member);
                             KPICalculationProperty.Description = TOMMeasure.KPI.Description;
                             KPICalculationProperty.CalculationType = AMO.CalculationType.Member;
                             MdxScript.CalculationProperties.Add(KPICalculationProperty);
@@ -458,7 +458,7 @@ namespace TOMtoAMO
                         MdxScript.Commands.Add(AMOCommand);
 
                         //Create the Calculation Property, which contains the various properties of the Measure
-                        AMO.CalculationProperty CalculationProperty = new AMO.CalculationProperty(string.Format("[{0}]", TOMMeasure.Name), AMO.CalculationType.Member);
+                        AMO.CalculationProperty CalculationProperty = new AMO.CalculationProperty(string.Format("[{0}]", TOMMeasure.Name.Replace("]", "]]")), AMO.CalculationType.Member);
                         CalculationProperty.Description = TOMMeasure.Description;
                         CalculationProperty.DisplayFolder = TOMMeasure.DisplayFolder;
                         CalculationProperty.CalculationType = AMO.CalculationType.Member;

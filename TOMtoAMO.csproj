@@ -55,7 +55,6 @@
     <Compile Include="Parsing\CommandType.cs" />
     <Compile Include="DataTypeHelper.cs" />
     <Compile Include="Parsing\MDXCommandParser.cs" />
-    <Compile Include="FileHandler.cs" />
     <Compile Include="File\AMOFile.cs" />
     <Compile Include="File\TOMFile.cs" />
     <Compile Include="Parsing\MDXCommand.cs" />

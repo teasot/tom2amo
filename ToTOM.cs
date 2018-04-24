@@ -74,39 +74,52 @@ namespace TOMtoAMO
             {
                 TOM.Table TOMTable = new TOM.Table();
                 TOMTable.Name = Dimension.Name;
+                TOMTable.IsHidden = !AMODatabase.Cubes[0].Dimensions.FindByName(Dimension.Name).Visible;
+
+                foreach (AMO.Translation AMOTranslation in Dimension.Translations)
+                    TranslationHelper.AddTOMTranslation(TOMDatabase, TOMTable, AMOTranslation);
                 #region Columns
-                foreach(AMO.DimensionAttribute Attribute in Dimension.Attributes)
+                foreach (AMO.DimensionAttribute Attribute in Dimension.Attributes)
                 {
                     if (Attribute.Type != AMO.AttributeType.RowNumber)
                     {
                         TOM.Column TOMColumn;
                         if (Attribute.NameColumn.Source is AMO.ExpressionBinding)
                         {
+                            //Calculated column specific attributes
                             TOM.CalculatedColumn CalculatedColumn = new TOM.CalculatedColumn();
-                            CalculatedColumn.Name = Attribute.Name;
                             CalculatedColumn.Expression = ((AMO.ExpressionBinding)Attribute.NameColumn.Source).Expression;
-                            CalculatedColumn.DataType = DataTypeHelper.ToTOMDataType(Attribute.KeyColumns[0].DataType);
-                            CalculatedColumn.Description = Attribute.Description;
-                            CalculatedColumn.DisplayFolder = Attribute.AttributeHierarchyDisplayFolder;
-                            CalculatedColumn.FormatString = Attribute.FormatString;
-                            CalculatedColumn.IsHidden = !Attribute.AttributeHierarchyVisible;
+                            CalculatedColumn.DataType = TOM.DataType.Automatic;
+                            CalculatedColumn.IsDataTypeInferred = true;
+
+                            //Set as TOMColumn so generic properties can be applied later
                             TOMColumn = CalculatedColumn;
                         }
                         else
                         {
+                            //Data column specific attributes
                             TOM.DataColumn DataColumn = new TOM.DataColumn();
-                            DataColumn.Name = Attribute.Name;
                             DataColumn.SourceColumn = ((AMO.ColumnBinding)Attribute.NameColumn.Source).ColumnID;
                             DataColumn.DataType = DataTypeHelper.ToTOMDataType(Attribute.KeyColumns[0].DataType);
-                            DataColumn.Description = Attribute.Description;
-                            DataColumn.DisplayFolder = Attribute.AttributeHierarchyDisplayFolder;
-                            DataColumn.FormatString = Attribute.FormatString;
-                            DataColumn.IsHidden = !Attribute.AttributeHierarchyVisible;
                             DataColumn.IsKey = Attribute.Usage == AMO.AttributeUsage.Key;
                             DataColumn.IsNullable = Attribute.KeyColumns[0].NullProcessing != AMO.NullProcessing.Error;
 
+                            //Set as TOMColumn so generic properties can be applied later
                             TOMColumn = DataColumn;
                         }
+                        
+                        //Generic Properties
+                        TOMColumn.Name = Attribute.Name;
+                        TOMColumn.Description = Attribute.Description;
+                        TOMColumn.DisplayFolder = Attribute.AttributeHierarchyDisplayFolder;
+                        TOMColumn.FormatString = Attribute.FormatString;
+                        TOMColumn.IsHidden = !Attribute.AttributeHierarchyVisible;
+                        
+                        //Add translations
+                        foreach (AMO.Translation AMOTranslation in Attribute.Translations)
+                            TranslationHelper.AddTOMTranslation(TOMDatabase, TOMColumn, AMOTranslation);
+
+                        //Finally, add the Column to the Table
                         TOMTable.Columns.Add(TOMColumn);
                     }
                 }
@@ -128,13 +141,22 @@ namespace TOMtoAMO
                     TOMHierarchy.Description = AMOHierarchy.Description;
                     TOMHierarchy.DisplayFolder = AMOHierarchy.DisplayFolder;
                     TOMHierarchy.IsHidden = false;
-                    foreach(AMO.Level AMOLevel in AMOHierarchy.Levels)
+
+                    //Add translations
+                    foreach (AMO.Translation AMOTranslation in AMOHierarchy.Translations)
+                        TranslationHelper.AddTOMTranslation(TOMDatabase, TOMHierarchy, AMOTranslation);
+
+                    foreach (AMO.Level AMOLevel in AMOHierarchy.Levels)
                     {
                         TOM.Level TOMLevel = new TOM.Level();
                         TOMLevel.Name = AMOLevel.Name;
                         TOMLevel.Description = AMOLevel.Description;
                         TOMLevel.Column = TOMTable.Columns[AMOLevel.SourceAttribute.Name];
                         TOMHierarchy.Levels.Add(TOMLevel);
+
+                        //Add translations
+                        foreach (AMO.Translation AMOTranslation in AMOLevel.Translations)
+                            TranslationHelper.AddTOMTranslation(TOMDatabase, TOMLevel, AMOTranslation);
                     }
                     TOMTable.Hierarchies.Add(TOMHierarchy);
                 }
@@ -154,8 +176,6 @@ namespace TOMtoAMO
             }
 
             #region Measures
-
-
             foreach (AMO.Command Command in AMODatabase.Cubes[0].MdxScripts[0].Commands)
             {
                 List<MDXCommand> Commands = MDXCommandParser.GetCommands(Command.Text);
@@ -170,17 +190,33 @@ namespace TOMtoAMO
                             throw new System.Exception("A CREATE MEASURE statement must at least have two delimited elements (one table, one measure name)");
 
                         //First, single quoted string, is table name
+                        string TableName = Strings[0].Text;
+                        //Then, square-bracket delimited string is the measure name.
+                        string MeasureName = Strings[1].Text;
 
+                        AMO.CalculationProperty CalculationProperty = AMODatabase.Cubes[0].MdxScripts[0].CalculationProperties.Find("[" + MeasureName.Replace("]", "]]") + "]");
                         TOM.Measure TOMMeasure = new TOM.Measure
                         {
-                            Name = Strings[1].Text,
-                            Expression = MainCommand.RHS
+                            Name = MeasureName,
+                            Expression = MainCommand.RHS,
+                            Description = CalculationProperty?.Description,
+                            DisplayFolder = CalculationProperty?.DisplayFolder,
+                            FormatString = CalculationProperty?.FormatString.Substring(1, CalculationProperty.FormatString.Length - 2),
+                            IsHidden = CalculationProperty == null ? true : !CalculationProperty.Visible
                         };
-                        TOMDatabase.Model.Tables[Strings[0].Text].Measures.Add(TOMMeasure);
+                        TOMDatabase.Model.Tables[TableName].Measures.Add(TOMMeasure);
+
+                        //Add Translations
+                        if (CalculationProperty != null)
+                            foreach(AMO.Translation AMOTranslation in CalculationProperty.Translations) 
+                                TranslationHelper.AddTOMTranslation(TOMDatabase, TOMMeasure, AMOTranslation);
+                                
                     }
                 }
             }
             #endregion
+
+            //TODO: Handle KPIs
             return TOMDatabase;
         }
     }

@@ -7,7 +7,7 @@ using AMO = Microsoft.AnalysisServices;
 using TOM = Microsoft.AnalysisServices.Tabular;
 namespace TOMtoAMO
 {
-    /* Based on AMO2Tabular (https://github.com/juanpablojofre/tabularamo/), which for all its flaws, was the first programattic attempt at finding 
+    /* Based on AMO2Tabular (https://github.com/juanpablojofre/tabularamo/), which for all its flaws, was the first attempt at finding 
      * a way to programatically create tabular models. 
      * 
      * Without it, navgating th labyrinthine logic of the 1103 model would have been impossible.
@@ -19,7 +19,27 @@ namespace TOMtoAMO
         const int SQL2012SP1 = 1103;
         const string MDXScriptName = "MdxScript";
         //TODO: Add direct query support
-
+        /* Complete feature list, to be noted when complete support added
+         *  - Database
+         *      - Direct Query
+         *      - Datasources (Done)
+         *      - Tables (Done)
+         *          - Translation of table (Done)
+         *          - Attributes (Done)
+         *              - Translation of Attribute (Done)
+         *          - Hierarchies (Done)
+         *              - Translation of Hierarchies (Done)
+         *              - Levels (Done)
+         *                  - Translation of Levels (Done)
+         *      - Measures (Done, except KPIs)
+         *          - Translation of Measures (Done)
+         *          - KPI's
+         *      - Perspectives (Done)
+         *      - Roles (Done)
+         *          - Row Level Security (Done)
+         *          - Members (Done)
+         *      - Relationships (Done)
+         */
         /// <summary>
         /// Given a 1200 or 1400 model, produces an equivelant 1103 model. Incompatible features are not added.
         /// </summary>
@@ -79,8 +99,43 @@ namespace TOMtoAMO
             foreach (TOM.ProviderDataSource TOMDataSource in TOMModel.DataSources)
             {
                 AMO.DataSource AMODataSource = new AMO.RelationalDataSource(TOMDataSource.Name, TOMDataSource.Name);
+                AMODataSource.Description = TOMDataSource.Description;
                 AMODataSource.ConnectionString = TOMDataSource.ConnectionString;
-                AMODataSource.ImpersonationInfo = new AMO.ImpersonationInfo(AMO.ImpersonationMode.ImpersonateServiceAccount);
+                AMODataSource.ImpersonationInfo = new AMO.ImpersonationInfo();
+                switch (TOMDataSource.ImpersonationMode)
+                {
+                    case TOM.ImpersonationMode.Default:
+                        AMODataSource.ImpersonationInfo.ImpersonationMode = AMO.ImpersonationMode.Default;
+                        break;
+                    case TOM.ImpersonationMode.ImpersonateAccount:
+                        AMODataSource.ImpersonationInfo.ImpersonationMode = AMO.ImpersonationMode.ImpersonateAccount;
+                        break;
+                    case TOM.ImpersonationMode.ImpersonateAnonymous:
+                        AMODataSource.ImpersonationInfo.ImpersonationMode = AMO.ImpersonationMode.ImpersonateAnonymous;
+                        break;
+                    case TOM.ImpersonationMode.ImpersonateCurrentUser:
+                        AMODataSource.ImpersonationInfo.ImpersonationMode = AMO.ImpersonationMode.ImpersonateCurrentUser;
+                        break;
+                    case TOM.ImpersonationMode.ImpersonateServiceAccount:
+                        AMODataSource.ImpersonationInfo.ImpersonationMode = AMO.ImpersonationMode.ImpersonateServiceAccount;
+                        break;
+                    case TOM.ImpersonationMode.ImpersonateUnattendedAccount:
+                        AMODataSource.ImpersonationInfo.ImpersonationMode = AMO.ImpersonationMode.ImpersonateUnattendedAccount;
+                        break;
+                }
+                AMODataSource.ImpersonationInfo.Account = TOMDataSource.Account;
+                AMODataSource.ImpersonationInfo.Password = TOMDataSource.Password;
+                switch (TOMDataSource.Isolation)
+                {
+                    case TOM.DatasourceIsolation.ReadCommitted:
+                        AMODataSource.Isolation = AMO.DataSourceIsolation.ReadCommitted;
+                        break;
+                    case TOM.DatasourceIsolation.Snapshot:
+                        AMODataSource.Isolation = AMO.DataSourceIsolation.Snapshot;
+                        break;
+                }
+                //1 "tick" = 100 nanoseconds = 1*10^-7 seconds.
+                AMODataSource.Timeout = new TimeSpan(TOMDataSource.Timeout * 10000000);
                 AMODatabase.DataSources.Add(AMODataSource);
             }
             #endregion
@@ -89,7 +144,7 @@ namespace TOMtoAMO
              * For each physical table (but NOT partition), a DataTable needs to be added to the DSV DataSet,
              * with the same name as the table.
              * 
-             * Similarly, for each physical column, a DataColumn needs to be added to the corresponding DataTable
+             * Similarly, for each distinct source column, a DataColumn needs to be added to the corresponding DataTable
              */
             #region DataSourceView
             using (AMO.DataSourceView dsv = new AMO.DataSourceView(AMODatabase.DataSources[0].Name))
@@ -128,8 +183,6 @@ namespace TOMtoAMO
                 //2. A dimension with the same name as the TOMTable
                 //3. A measure group with the same name as the TOMTable, 
                 System.Data.DataTable SchemaTable = new System.Data.DataTable(TOMTable.Name);
-                foreach (TOM.Column TOMColumn in TOMTable.Columns)
-                    SchemaTable.Columns.Add(new System.Data.DataColumn(TOMColumn.Name));
                 AMODatabase.DataSourceViews[0].Schema.Tables.Add(SchemaTable);
 
                 string RowNumberColumnName = string.Format(System.Globalization.CultureInfo.InvariantCulture, "RowNumber_{0}", System.Guid.NewGuid());
@@ -183,7 +236,8 @@ namespace TOMtoAMO
                         foreach (TOM.Culture TOMCulture in TOMModel.Cultures)
                         {
                             AMO.Translation AMOTranslation = TranslationHelper.GetTranslation(TOMCulture, TOMTable);
-                            Dimension.Translations.Add(AMOTranslation);
+                            if(AMOTranslation != null)
+                                Dimension.Translations.Add(AMOTranslation);
                         }
                     }
                 }
@@ -267,10 +321,15 @@ namespace TOMtoAMO
                 #region Add Columns
                 foreach (TOM.Column TOMColumn in TOMTable.Columns)
                 {
+
                     switch (TOMColumn.Type)
                     {
                         case TOM.ColumnType.Data:
+                            //Add the DataColumn corresponding to the SourceColumn, if it does not already exist
                             TOM.DataColumn TOMDataColumn = (TOM.DataColumn)TOMColumn;
+                            if (!SchemaTable.Columns.Contains(TOMDataColumn.SourceColumn))
+                                SchemaTable.Columns.Add(new System.Data.DataColumn(((TOM.DataColumn)TOMColumn).SourceColumn));
+
                             System.Data.OleDb.OleDbType ColumnDataType = DataTypeHelper.ToOleDbType(TOMDataColumn.DataType);
                             AMO.DimensionAttribute NormalAttribute = AMODatabase.Dimensions[TOMTable.Name].Attributes.Add(TOMDataColumn.Name, TOMDataColumn.Name);
                             NormalAttribute.Usage = AMO.AttributeUsage.Regular;
@@ -291,7 +350,7 @@ namespace TOMtoAMO
                             foreach (TOM.Culture TOMCulture in TOMModel.Cultures)
                                 using (AMO.Translation AMOTranslation = TranslationHelper.GetTranslation(TOMCulture, TOMColumn))
                                     if (AMOTranslation != null)
-                                        NormalAttribute.Translations.Add(AMOTranslation);
+                                        NormalAttribute.Translations.Add(new AMO.AttributeTranslation { Caption = AMOTranslation.Caption, Description = AMOTranslation.Description, DisplayFolder = AMOTranslation.DisplayFolder });
 
                             NormalAttributeRelationship.Cardinality = AMO.Cardinality.Many;
                             NormalAttributeRelationship.OverrideBehavior = AMO.OverrideBehavior.None;
@@ -323,7 +382,7 @@ namespace TOMtoAMO
                             foreach (TOM.Culture TOMCulture in TOMModel.Cultures)
                                 using (AMO.Translation AMOTranslation = TranslationHelper.GetTranslation(TOMCulture, TOMColumn))
                                     if (AMOTranslation != null)
-                                        CalculatedAttribute.Translations.Add(AMOTranslation);
+                                        CalculatedAttribute.Translations.Add(new AMO.AttributeTranslation { Caption = AMOTranslation.Caption, Description = AMOTranslation.Description, DisplayFolder = AMOTranslation.DisplayFolder });
 
                             currentAttributeRelationship.Cardinality = AMO.Cardinality.Many;
                             currentAttributeRelationship.OverrideBehavior = AMO.OverrideBehavior.None;
@@ -351,15 +410,23 @@ namespace TOMtoAMO
                 #region Add Hierarchies
                 foreach (TOM.Hierarchy TOMHierarchy in TOMTable.Hierarchies)
                 {
-                    AMO.Hierarchy Hierarchy = AMODatabase.Dimensions[TOMTable.Name].Hierarchies.Add(TOMHierarchy.Name, TOMHierarchy.Name);
+                    AMO.Hierarchy AMOHierarchy = AMODatabase.Dimensions[TOMTable.Name].Hierarchies.Add(TOMHierarchy.Name, TOMHierarchy.Name);
+                    AMOHierarchy.Description = TOMHierarchy.Description;
                     if (!string.IsNullOrWhiteSpace(TOMHierarchy.DisplayFolder))
-                        Hierarchy.DisplayFolder = TOMHierarchy.DisplayFolder;
+                        AMOHierarchy.DisplayFolder = TOMHierarchy.DisplayFolder;
 
-                    Hierarchy.AllMemberName = "All";
+                    AMOHierarchy.AllMemberName = "All";
                     foreach (TOM.Level TOMLevel in TOMHierarchy.Levels)
                     {
-                        AMO.Level Level = Hierarchy.Levels.Add(TOMLevel.Name);
-                        Level.SourceAttribute = AMODatabase.Dimensions[TOMTable.Name].Attributes[TOMLevel.Column.Name];
+                        AMO.Level AMOLevel = AMOHierarchy.Levels.Add(TOMLevel.Name);
+                        AMOLevel.SourceAttribute = AMODatabase.Dimensions[TOMTable.Name].Attributes[TOMLevel.Column.Name];
+                        AMOLevel.Description = TOMLevel.Description;
+                        //Add Translations to the CalculatedAttribute
+                        //Loop through each culture, and add the translation associated with that culture.
+                        foreach (TOM.Culture TOMCulture in TOMModel.Cultures)
+                            using (AMO.Translation AMOTranslation = TranslationHelper.GetTranslation(TOMCulture, TOMLevel))
+                                if (AMOTranslation != null)
+                                    AMOLevel.Translations.Add(AMOTranslation);
                     }
                 }
                 #endregion
@@ -506,8 +573,83 @@ namespace TOMtoAMO
                     AMO.PerspectiveMeasureGroup PerspectiveMeasureGroup = new AMO.PerspectiveMeasureGroup(TOMTable.Name);
 
                     //Perspective Measures
+                    //In this case, ']' is NOT "double quoted", unlike the calculation references, s
                     foreach (TOM.PerspectiveMeasure TOMPerspectiveMeasure in TOMTable.PerspectiveMeasures)
-                        PerspectiveMeasureGroup.Measures.Add('[' + TOMPerspectiveMeasure.Name + ']');
+                        AMOPerspective.Calculations.Add('[' + TOMPerspectiveMeasure.Name + ']');
+
+                    //VS does not add KPI's to Perspectives, so I have no idea how to do this...
+                    //TODO: Add KPIs to perspectives
+                    
+                }
+                AMODatabase.Cubes[0].Perspectives.Add(AMOPerspective);
+            }
+            #endregion
+
+            #region Roles
+            foreach (TOM.ModelRole TOMRole in TOMDatabase.Model.Roles)
+            {
+                //Ceate database role
+                AMO.Role DatabaseRole = AMODatabase.Roles.Add(TOMRole.Name);
+                DatabaseRole.Description = TOMRole.Description;
+
+                //Add Members to Database role
+                foreach(TOM.ModelRoleMember TOMMember in TOMRole.Members)
+                {
+                    DatabaseRole.Members.Add(new AMO.RoleMember
+                    {
+                        Name = TOMMember.MemberName,
+                        Sid = TOMMember.MemberID
+                    });
+                }
+
+                //Add DatabasePermission
+                AMO.DatabasePermission DatabasePermission = AMODatabase.DatabasePermissions.Add(TOMRole.Name, TOMRole.Name, TOMRole.Name);
+                //Add CubePermission
+                AMO.CubePermission CubePermission = AMODatabase.Cubes[0].CubePermissions.Add(TOMRole.Name, TOMRole.Name, TOMRole.Name);
+                switch (TOMRole.ModelPermission)
+                {
+                    case TOM.ModelPermission.Administrator:
+                        //Add ReadDefinition, Read, and Administer to DatabasePermission
+                        DatabasePermission.ReadDefinition = AMO.ReadDefinitionAccess.Allowed;
+                        DatabasePermission.Read = AMO.ReadAccess.Allowed;
+                        DatabasePermission.Administer = true;
+
+                        //Nothing extra to add to CubePermission, that is not added after this
+                        // switch statement
+                        break;
+                    case TOM.ModelPermission.None:
+                        //Add no permissions to DatabasePermission.
+                        break;
+                    case TOM.ModelPermission.Read:
+                        //Add only Read access to Database Permission
+                        DatabasePermission.Read = AMO.ReadAccess.Allowed;
+
+                        //CubePermission
+                        CubePermission.Read = AMO.ReadAccess.Allowed;
+                        break;
+                    case TOM.ModelPermission.ReadRefresh:
+                        DatabasePermission.Read = AMO.ReadAccess.Allowed;
+                        DatabasePermission.Process = true;
+
+                        //CubePermission
+                        CubePermission.Read = AMO.ReadAccess.Allowed;
+                        CubePermission.Process = true;
+                        break;
+                    case TOM.ModelPermission.Refresh:
+                        DatabasePermission.Process = true;
+
+                        //CubePermission
+                        CubePermission.Process = true;
+                        break;
+                }
+                CubePermission.ReadSourceData = AMO.ReadSourceDataAccess.None;
+
+                //Finally, add the row filters
+                foreach(TOM.TablePermission TablePermission in TOMRole.TablePermissions)
+                {
+                    AMO.DimensionPermission DimensionPermission = new AMO.DimensionPermission(TOMRole.Name, TOMRole.Name, TOMRole.Name);
+                    DimensionPermission.AllowedRowsExpression = TablePermission.FilterExpression;
+                    AMODatabase.Dimensions.GetByName(TablePermission.Table.Name).DimensionPermissions.Add(DimensionPermission);
                 }
             }
             #endregion

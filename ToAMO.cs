@@ -357,6 +357,7 @@ namespace TOMtoAMO
                             break;
                         case TOM.ColumnType.Calculated:
                             TOM.CalculatedColumn TOMCalculatedColumn = (TOM.CalculatedColumn)TOMColumn;
+                            System.Data.OleDb.OleDbType CalculatedColumnDataType = DataTypeHelper.ToOleDbType(TOMColumn.DataType);
 
                             //Add Attribute to the Dimension
                             AMO.Dimension dim = AMODatabase.Dimensions[TOMTable.Name];
@@ -364,7 +365,7 @@ namespace TOMtoAMO
                             CalculatedAttribute.Usage = AMO.AttributeUsage.Regular;
                             CalculatedAttribute.KeyUniquenessGuarantee = false;
 
-                            CalculatedAttribute.KeyColumns.Add(new AMO.DataItem(TOMTable.Name, TOMCalculatedColumn.Name, System.Data.OleDb.OleDbType.Empty));
+                            CalculatedAttribute.KeyColumns.Add(new AMO.DataItem(TOMTable.Name, TOMCalculatedColumn.Name, CalculatedColumnDataType));
                             CalculatedAttribute.KeyColumns[0].Source = new AMO.ExpressionBinding(TOMCalculatedColumn.Expression);
                             CalculatedAttribute.KeyColumns[0].NullProcessing = AMO.NullProcessing.Preserve;
                             CalculatedAttribute.NameColumn = new AMO.DataItem(TOMTable.Name, TOMCalculatedColumn.Name, System.Data.OleDb.OleDbType.WChar);

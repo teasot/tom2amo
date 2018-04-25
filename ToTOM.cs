@@ -10,14 +10,27 @@ namespace TOMtoAMO
     {
 
 
-        public const string MeasurePattern = @"\b(?<createMeasure>create\s+measure)\s+(?<tableName>(\w+|'(\w|\s+\w)+?'))\[(?<measureName>(\w+|(\w|\s+\w)+?))\]\s*=(?<commandTypeExpression>(((?<doubleQuote>" + "\"" + @")(?:\\\k<doubleQuote>|.)*?\k<doubleQuote>)|&lt;|&gt;|&quot;|&amp;|.|\n)*?);";
-
-        public const string MemberPattern = @"\b(?<createMember>create\s+member)\s+(?<memberFullName>(?<cubeName>(currentcube|\w+|(\[.*?\]))\.){0,1}(?<dimensionName>(\w+|\[.*?\])\.)(?<memberName>(\w+|\[.*?\])))\s+AS\s+(?<memberExpression>(?<singleQuote>')(?:\\\k<singleQuote>|.)*?\k<singleQuote>)\s*(?<propertyPairs>(?<propertyPair>,\s*(?<propertyName>\w+)\s*=\s*(?<propertyValue>(\w+|(?<singleQuote>')(?:\\\k<singleQuote>|.)*?\k<singleQuote>(\[.*?\]){0,1}))\s*)+?);";
-
-        public const string KpiPattern = @"\b(?<createKpi>create\s+kpi)\s+(?<kpiFullName>(?<cubeName>(currentcube|\w+|(\[.*?\]))\.){0,1}(?<dimensionName>(\w+|\[.*?\])\.){0,1}(?<kpiName>(\w+|\[.*?\])))\s+AS\s+(?<kpiExpression>((?<singleQuote>')(?:\\\k<singleQuote>|.)*?\k<singleQuote>|(\w+|\[.*?\])\.\[.*?\]))\s*(?<propertyPairs>(?<propertyPair>,\s*(?<propertyName>\w+)\s*=\s*(?<propertyValue>(\w+|(?<singleQuote>')(?:\\\k<singleQuote>|.)*?\k<singleQuote>(\[.*?\]){0,1}|(\w+|\[.*?\])\.\[.*?\]))\s*)+?)\s*;";
-
-        public const string ntLoginPattern = @"\A(\w+||(\w+|\.)\\\w+)\z";
-
+        /* Complete feature list, to be noted when complete support added
+         *  - Database
+         *      - Direct Query
+         *      - Datasources (Done)
+         *      - Tables
+         *          - Translation of table (Done)
+         *          - Attributes
+         *              - Translation of Attribute
+         *          - Hierarchies
+         *              - Translation of Hierarchies
+         *              - Levels
+         *                  - Translation of Levels
+         *      - Measures
+         *          - Translation of Measures
+         *          - KPI's
+         *      - Perspectives
+         *      - Roles
+         *          - Row Level Security
+         *          - Members
+         *      - Relationships
+         */
         public static TOM.Database Database(AMO.Database AMODatabase)
         {
             TOM.Database TOMDatabase = new TOM.Database(AMODatabase.Name);
@@ -89,8 +102,6 @@ namespace TOMtoAMO
                             //Calculated column specific attributes
                             TOM.CalculatedColumn CalculatedColumn = new TOM.CalculatedColumn();
                             CalculatedColumn.Expression = ((AMO.ExpressionBinding)Attribute.NameColumn.Source).Expression;
-                            CalculatedColumn.DataType = TOM.DataType.Automatic;
-                            CalculatedColumn.IsDataTypeInferred = true;
 
                             //Set as TOMColumn so generic properties can be applied later
                             TOMColumn = CalculatedColumn;
@@ -100,7 +111,6 @@ namespace TOMtoAMO
                             //Data column specific attributes
                             TOM.DataColumn DataColumn = new TOM.DataColumn();
                             DataColumn.SourceColumn = ((AMO.ColumnBinding)Attribute.NameColumn.Source).ColumnID;
-                            DataColumn.DataType = DataTypeHelper.ToTOMDataType(Attribute.KeyColumns[0].DataType);
                             DataColumn.IsKey = Attribute.Usage == AMO.AttributeUsage.Key;
                             DataColumn.IsNullable = Attribute.KeyColumns[0].NullProcessing != AMO.NullProcessing.Error;
 
@@ -114,7 +124,8 @@ namespace TOMtoAMO
                         TOMColumn.DisplayFolder = Attribute.AttributeHierarchyDisplayFolder;
                         TOMColumn.FormatString = Attribute.FormatString;
                         TOMColumn.IsHidden = !Attribute.AttributeHierarchyVisible;
-                        
+                        TOMColumn.DataType = DataTypeHelper.ToTOMDataType(Attribute.KeyColumns[0].DataType);
+
                         //Add translations
                         foreach (AMO.Translation AMOTranslation in Attribute.Translations)
                             TranslationHelper.AddTOMTranslation(TOMDatabase, TOMColumn, AMOTranslation);

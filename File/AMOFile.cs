@@ -10,7 +10,7 @@ namespace TOMtoAMO.File
         /// <returns></returns>
         public static AMO.Database ReadFromFile(string FileLocation)
         {
-            using (System.Xml.XmlReader Reader = System.Xml.XmlReader.Create(@"C:\Users\Anthony Flynn\source\repos\TabularProject3\TabularProject3\Model.bim"))
+            using (System.Xml.XmlReader Reader = System.Xml.XmlReader.Create(FileLocation))
             {
                 Reader.ReadToFollowing("Database");
                 return (AMO.Database)AMO.Utils.Deserialize(Reader, new AMO.Database());
@@ -24,7 +24,7 @@ namespace TOMtoAMO.File
         /// <param name="Database">The database to serialise</param>
         public static void WriteToFile(string FileLocation, AMO.Database Database)
         {
-            using (System.Xml.XmlWriter Writer = System.Xml.XmlWriter.Create(@"C:\Users\Anthony Flynn\Documents\test.bim"))
+            using (System.Xml.XmlWriter Writer = System.Xml.XmlWriter.Create(FileLocation))
             {
                 AMO.Utils.Serialize(Writer, Database, false);
             }

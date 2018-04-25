@@ -60,7 +60,6 @@
     <Compile Include="Parsing\MDXCommand.cs" />
     <Compile Include="Parsing\MDXString.cs" />
     <Compile Include="Parsing\StringType.cs" />
-    <Compile Include="TextHelper.cs" />
     <Compile Include="ToTOM.cs" />
     <Compile Include="RelationshipHelper.cs" />
     <Compile Include="ToAMO.cs" />

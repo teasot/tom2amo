@@ -411,10 +411,10 @@ namespace TOMtoAMO
                 #region Add Hierarchies
                 foreach (TOM.Hierarchy TOMHierarchy in TOMTable.Hierarchies)
                 {
+                    //Create the Hierarchy, and add it
                     AMO.Hierarchy AMOHierarchy = AMODatabase.Dimensions[TOMTable.Name].Hierarchies.Add(TOMHierarchy.Name, TOMHierarchy.Name);
                     AMOHierarchy.Description = TOMHierarchy.Description;
-                    if (!string.IsNullOrWhiteSpace(TOMHierarchy.DisplayFolder))
-                        AMOHierarchy.DisplayFolder = TOMHierarchy.DisplayFolder;
+                    AMOHierarchy.DisplayFolder = TOMHierarchy.DisplayFolder;
 
                     AMOHierarchy.AllMemberName = "All";
                     foreach (TOM.Level TOMLevel in TOMHierarchy.Levels)

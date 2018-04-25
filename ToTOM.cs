@@ -25,10 +25,10 @@ namespace TOMtoAMO
          *      - Measures (Done)
          *          - Translation of Measures (Done)
          *          - KPI's
-         *      - Perspectives
-         *      - Roles
-         *          - Row Level Security
-         *          - Members
+         *      - Perspectives (Done)
+         *      - Roles (Done)
+         *          - Row Level Security (Done)
+         *          - Members (Done)
          *      - Relationships
          */
          /// <summary>
@@ -317,8 +317,75 @@ namespace TOMtoAMO
             }
             #endregion
 
+            #region Roles
+            foreach(AMO.Role AMORole in AMODatabase.Roles)
+            {
+                //Create the Role
+                TOM.ModelRole TOMRole = new TOM.ModelRole
+                {
+                    Name = AMORole.Name,
+                    Description = AMORole.Description
+                };
+
+                //Determine the ModelPermission from the equivelant DatabasePermission
+                foreach(AMO.DatabasePermission Permission in AMODatabase.DatabasePermissions)
+                {
+                    if(Permission.Role.Name == AMORole.Name)
+                    {
+                        if (Permission.Administer)
+                            TOMRole.ModelPermission = TOM.ModelPermission.Administrator;
+                        else
+                        {
+                            if (Permission.Read == AMO.ReadAccess.Allowed && Permission.Process)
+                                TOMRole.ModelPermission = TOM.ModelPermission.ReadRefresh;
+                            else if (Permission.Read == AMO.ReadAccess.Allowed)
+                                TOMRole.ModelPermission = TOM.ModelPermission.Read;
+                            else if (Permission.Process)
+                                TOMRole.ModelPermission = TOM.ModelPermission.Refresh;
+                            else
+                                TOMRole.ModelPermission = TOM.ModelPermission.None;
+                        }
+                    }
+                }
+
+                //Add the Row Level Security
+                foreach(AMO.Dimension Dimension in AMODatabase.Dimensions)
+                {
+                    foreach (AMO.DimensionPermission DimensionPermission in Dimension.DimensionPermissions)
+                        if (DimensionPermission.Role.Name == TOMRole.Name)
+                        {
+                            //Create the Table Permission
+                            TOM.TablePermission TablePermission = new TOM.TablePermission
+                            {
+                                Table = TOMDatabase.Model.Tables[Dimension.Name],
+                                FilterExpression = DimensionPermission.AllowedRowsExpression
+                            };
+
+                            //Add the Table Permission to the Role
+                            TOMRole.TablePermissions.Add(TablePermission);
+                        }
+                }
+
+                //Add Role Members
+                foreach(AMO.RoleMember AMOMember in AMORole.Members)
+                {
+                    //Create the Role Member
+                    TOM.ModelRoleMember TOMMember = new TOM.WindowsModelRoleMember
+                    {
+                        MemberID = AMOMember.Sid,
+                        MemberName = AMOMember.Name
+                    };
+
+                    //Add the Member to the Role
+                    TOMRole.Members.Add(TOMMember);
+                }
+
+                //Add the Role to the Database
+                TOMDatabase.Model.Roles.Add(TOMRole);
+            }
+            #endregion
             //Add TabularEditor compatibility annotation if necessary
-            if(AddTabularEditorAnnotation)
+            if (AddTabularEditorAnnotation)
                 TOMDatabase.Model.Annotations.Add(new TOM.Annotation {
                     Name = "TabularEditor_CompatibilityVersion",
                     Value = AMODatabase.CompatibilityLevel.ToString()

@@ -11,3 +11,4 @@ Issues found in Tabular while creating this:
 
 - In 1103, if a measure "A" and "A]" exist in the same model, and you add "A]" to a perspective, it will not add "A]", and will instead add "A". This issue does not exist in 1200.
 - In 1103 and 1200, KPI's are created by creating hidden "measures". For instance, a KPI on the measure "A" creates the measures "_A Goal", "_A Status", and possibly "_A Trend". This means if you have a KPI "A", you cannot create a measure "_Goal".
+- You cannot add KPIs to perspectives, only measures

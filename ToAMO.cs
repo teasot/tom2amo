@@ -513,5 +513,26 @@ namespace TOMtoAMO
             #endregion
             return AMODatabase;
         }
+
+        //TODO: Add
+        /*TODO: Document necessary annotations/comments before addition.
+         * Off the top of my head: 
+         *   The "arbritrary" comment before measure declaration
+         *   Query Editor Serialisation
+         *   Annotation telling item to use serialisation, and not treat as table
+         *   Data Table Annotations
+         *   CalculationProperty annotations, including detecting common format strings
+         *  Most definitely NOT BIDS - that is added in another function
+         * 
+         */
+        public static void MakeCompatibleWithVisualStudio(AMO.Database AMODatabase)
+        {
+            throw new NotImplementedException("MakeCompatibleWithVisualStudio not yet implemented.");
+        }
+
+        public static void MakeCompatibleWithBIDS(AMO.Database AMODatabase)
+        {
+            throw new NotImplementedException("MakeCompatibleWithBIDS not yet implemented.");
+        }
     }
 }

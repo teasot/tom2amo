@@ -220,10 +220,5 @@ namespace TOMtoAMO
             //TODO: Handle KPIs
             return TOMDatabase;
         }
-
-        public static void MakeCompatibleWithVisualStudio(TOM.Database TOMDatabase)
-        {
-            TOMDatabase.Annotations
-        }
     }
 }

@@ -131,10 +131,10 @@ namespace TOMtoAMO
                         TOMTable.Columns[Attribute.Name].SortByColumn = TOMTable.Columns[Attribute.OrderByAttribute.Name];
                     }
                 }
-                TOMDatabase.Model.Tables.Add(TOMTable);
                 #endregion
+                TOMDatabase.Model.Tables.Add(TOMTable);
                 #region Hierarchies
-                foreach(AMO.Hierarchy AMOHierarchy in Dimension.Hierarchies)
+                foreach (AMO.Hierarchy AMOHierarchy in Dimension.Hierarchies)
                 {
                     TOM.Hierarchy TOMHierarchy = new TOM.Hierarchy();
                     TOMHierarchy.Name = AMOHierarchy.Name;
@@ -216,8 +216,14 @@ namespace TOMtoAMO
             }
             #endregion
 
+            TOMDatabase.Model.Annotations.Add(new TOM.Annotation { Name = "TabularEditor_CompatibilityVersion", Value = AMODatabase.CompatibilityLevel.ToString() });
             //TODO: Handle KPIs
             return TOMDatabase;
+        }
+
+        public static void MakeCompatibleWithVisualStudio(TOM.Database TOMDatabase)
+        {
+            TOMDatabase.Annotations
         }
     }
 }

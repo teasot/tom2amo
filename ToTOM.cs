@@ -384,6 +384,47 @@ namespace TOMtoAMO
                 TOMDatabase.Model.Roles.Add(TOMRole);
             }
             #endregion
+
+            #region Relationships
+            foreach(AMO.Dimension Dimension in AMODatabase.Dimensions)
+            {
+                foreach(AMO.Relationship AMORelationship in Dimension.Relationships)
+                {
+                    //Get To and From columns
+                    AMO.Dimension FromDimension = AMODatabase.Dimensions[AMORelationship.FromRelationshipEnd.DimensionID];
+                    AMO.Dimension ToDimension = AMODatabase.Dimensions[AMORelationship.ToRelationshipEnd.DimensionID];
+                    TOM.Table FromTable = TOMDatabase.Model.Tables[FromDimension.Name];
+                    TOM.Column FromColumn = FromTable.Columns[FromDimension.Attributes[AMORelationship.FromRelationshipEnd.Attributes[0].AttributeID].Name];
+                    TOM.Table ToTable = TOMDatabase.Model.Tables[ToDimension.Name];
+                    TOM.Column ToColumn = ToTable.Columns[ToDimension.Attributes[AMORelationship.ToRelationshipEnd.Attributes[0].AttributeID].Name];
+
+                    //Create the Relationship
+                    TOM.SingleColumnRelationship TOMRelationship = new TOM.SingleColumnRelationship
+                    {
+                        FromColumn = FromColumn,
+                        ToColumn = ToColumn,
+                        //Set IsActive to false, and update later
+                        IsActive = false
+                    };
+
+                    //Check if Relationship is active
+                    foreach (AMO.MeasureGroupDimension MeasureGroupDimension in AMODatabase.Cubes[0].MeasureGroups.GetByName(FromTable.Name).Dimensions)
+                    {
+                        if (
+                            MeasureGroupDimension is AMO.ReferenceMeasureGroupDimension
+                            && ((AMO.ReferenceMeasureGroupDimension)MeasureGroupDimension).RelationshipID == AMORelationship.ID
+                        )
+                        {
+                            TOMRelationship.IsActive = true;
+                        }
+                    }
+
+                    //Add the Relationship to the Database
+                    TOMDatabase.Model.Relationships.Add(TOMRelationship);
+                    
+                }
+            }
+            #endregion
             //Add TabularEditor compatibility annotation if necessary
             if (AddTabularEditorAnnotation)
                 TOMDatabase.Model.Annotations.Add(new TOM.Annotation {

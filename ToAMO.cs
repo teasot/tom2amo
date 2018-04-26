@@ -31,9 +31,9 @@ namespace TOMtoAMO
          *              - Translation of Hierarchies (Done)
          *              - Levels (Done)
          *                  - Translation of Levels (Done)
-         *      - Measures (Done, except KPIs)
+         *      - Measures (Done)
          *          - Translation of Measures (Done)
-         *          - KPI's
+         *          - KPI's (Done)
          *      - Perspectives (Done)
          *      - Roles (Done)
          *          - Row Level Security (Done)

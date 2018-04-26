@@ -29,7 +29,7 @@ namespace TOMtoAMO
          *      - Roles (Done)
          *          - Row Level Security (Done)
          *          - Members (Done)
-         *      - Relationships
+         *      - Relationships (Done)
          */
          /// <summary>
          /// Generates a 1200 Tabular Database, based on the provided 1103 Database.
@@ -116,6 +116,8 @@ namespace TOMtoAMO
                 {
                     if (Attribute.Type != AMO.AttributeType.RowNumber)
                     {
+                        //Declare "generic" TOM Column, to be assigned to the "specific" column for reuse in
+                        // assigning common properties
                         TOM.Column TOMColumn;
                         if (Attribute.NameColumn.Source is AMO.ExpressionBinding)
                         {
@@ -138,7 +140,7 @@ namespace TOMtoAMO
                             TOMColumn = DataColumn;
                         }
                         
-                        //Generic Properties
+                        //Generic Properties, shared between both Data Columns and Calculated Columns
                         TOMColumn.Name = Attribute.Name;
                         TOMColumn.Description = Attribute.Description;
                         TOMColumn.DisplayFolder = Attribute.AttributeHierarchyDisplayFolder;
@@ -154,7 +156,8 @@ namespace TOMtoAMO
                         TOMTable.Columns.Add(TOMColumn);
                     }
                 }
-                //Add sort by columns
+                //Add sort by columns last
+                //This is because we cannot add sort by columns referring to columns which do not exist yet
                 foreach (AMO.DimensionAttribute Attribute in Dimension.Attributes)
                 {
                     if (Attribute.Type != AMO.AttributeType.RowNumber && Attribute.OrderByAttribute != null)
@@ -206,14 +209,16 @@ namespace TOMtoAMO
                 foreach(AMO.Partition AMOPartition in AMODatabase.Cubes[0].MeasureGroups.GetByName(TOMTable.Name).Partitions)
                 {
                     //Create the partition
-                    TOM.Partition TOMPartition = new TOM.Partition();
-                    TOMPartition.Description = AMOPartition.Description;
-
-                    //Add the query
-                    TOMPartition.Source = new TOM.QueryPartitionSource
+                    TOM.Partition TOMPartition = new TOM.Partition
                     {
-                        DataSource = TOMDatabase.Model.DataSources[AMOPartition.DataSource.Name],
-                        Query = ((AMO.QueryBinding)AMOPartition.Source).QueryDefinition
+                        Description = AMOPartition.Description,
+
+                        //Add the query
+                        Source = new TOM.QueryPartitionSource
+                        {
+                            DataSource = TOMDatabase.Model.DataSources[AMOPartition.DataSource.Name],
+                            Query = ((AMO.QueryBinding)AMOPartition.Source).QueryDefinition
+                        }
                     };
 
                     //Add the Partition
@@ -233,6 +238,12 @@ namespace TOMtoAMO
                     {
                         List<MDXString> Strings = MDXCommandParser.GetStrings(MainCommand.LHS);
                         //Throw exception if we do not have a valid CREATE MEASURE command.
+                        /* We do not care if a command is claid, only if we can parse it.
+                         * We need two strings: 
+                         * - A single quoted string, representing the table name
+                         * - A square bracketed string, representing the measure name
+                         * As long as they are present, we consider it valid.
+                         */
                         if (Strings.Count < 2 || Strings[0].Type != StringType.SingleQuote || Strings[1].Type != StringType.SquareBracket)
                             throw new System.Exception("A CREATE MEASURE statement must at least have two delimited elements (one table, one measure name)");
 
@@ -263,7 +274,6 @@ namespace TOMtoAMO
 
                         //Add the Measure
                         TOMDatabase.Model.Tables[TableName].Measures.Add(TOMMeasure);
-
                     }
                 }
             }
@@ -280,7 +290,9 @@ namespace TOMtoAMO
                 };
                 foreach(AMO.PerspectiveDimension AMOPerspectiveDimension in AMOPerspective.Dimensions)
                 {
+                    //Find the TOM Table equivelant to the AMO Perspective Dimension
                     TOM.Table TOMTable = TOMDatabase.Model.Tables[AMOPerspectiveDimension.Dimension.Name];
+
                     //Create the Perspective Table
                     TOM.PerspectiveTable TOMPerspectiveTable = new TOM.PerspectiveTable { Table = TOMTable };
 
@@ -301,12 +313,14 @@ namespace TOMtoAMO
                     //Add Measures
                     foreach (AMO.PerspectiveCalculation PerspectiveCalculation in AMOPerspective.Calculations)
                     {
-                        foreach(TOM.Measure TOMMeasure in TOMTable.Measures)
-                            if(
-                                PerspectiveCalculation.Type == AMO.PerspectiveCalculationType.Member 
+                        foreach (TOM.Measure TOMMeasure in TOMTable.Measures)
+                            if (
+                                PerspectiveCalculation.Type == AMO.PerspectiveCalculationType.Member
                                 && PerspectiveCalculation.Name == "[Measures].[" + TOMMeasure.Name + "]"
                             )
-                                TOMPerspectiveTable.PerspectiveMeasures.Add(new TOM.PerspectiveMeasure{Measure = TOMMeasure});
+                            {
+                                TOMPerspectiveTable.PerspectiveMeasures.Add(new TOM.PerspectiveMeasure { Measure = TOMMeasure });
+                            }
                     }
 
                     //Add the Perspective Table
@@ -334,17 +348,14 @@ namespace TOMtoAMO
                     {
                         if (Permission.Administer)
                             TOMRole.ModelPermission = TOM.ModelPermission.Administrator;
+                        else if (Permission.Read == AMO.ReadAccess.Allowed && Permission.Process)
+                            TOMRole.ModelPermission = TOM.ModelPermission.ReadRefresh;
+                        else if (Permission.Read == AMO.ReadAccess.Allowed)
+                            TOMRole.ModelPermission = TOM.ModelPermission.Read;
+                        else if (Permission.Process)
+                            TOMRole.ModelPermission = TOM.ModelPermission.Refresh;
                         else
-                        {
-                            if (Permission.Read == AMO.ReadAccess.Allowed && Permission.Process)
-                                TOMRole.ModelPermission = TOM.ModelPermission.ReadRefresh;
-                            else if (Permission.Read == AMO.ReadAccess.Allowed)
-                                TOMRole.ModelPermission = TOM.ModelPermission.Read;
-                            else if (Permission.Process)
-                                TOMRole.ModelPermission = TOM.ModelPermission.Refresh;
-                            else
-                                TOMRole.ModelPermission = TOM.ModelPermission.None;
-                        }
+                            TOMRole.ModelPermission = TOM.ModelPermission.None;
                     }
                 }
 
@@ -409,15 +420,9 @@ namespace TOMtoAMO
 
                     //Check if Relationship is active
                     foreach (AMO.MeasureGroupDimension MeasureGroupDimension in AMODatabase.Cubes[0].MeasureGroups.GetByName(FromTable.Name).Dimensions)
-                    {
-                        if (
-                            MeasureGroupDimension is AMO.ReferenceMeasureGroupDimension
-                            && ((AMO.ReferenceMeasureGroupDimension)MeasureGroupDimension).RelationshipID == AMORelationship.ID
-                        )
-                        {
-                            TOMRelationship.IsActive = true;
-                        }
-                    }
+                        if ( MeasureGroupDimension is AMO.ReferenceMeasureGroupDimension)
+                            if(((AMO.ReferenceMeasureGroupDimension)MeasureGroupDimension).RelationshipID == AMORelationship.ID)
+                                TOMRelationship.IsActive = true;
 
                     //Add the Relationship to the Database
                     TOMDatabase.Model.Relationships.Add(TOMRelationship);

@@ -2,7 +2,7 @@
 using System.Data.OleDb;
 using AMO = Microsoft.AnalysisServices;
 using TOM = Microsoft.AnalysisServices.Tabular;
-namespace TOMtoAMO
+namespace TOM2AMO
 {
     public static class DataTypeHelper
     {
@@ -60,6 +60,8 @@ namespace TOMtoAMO
                         return TOM.DataType.Int64;
                     case OleDbType.Variant:
                         return TOM.DataType.Variant;
+                    case OleDbType.Empty:
+                        return TOM.DataType.Unknown;
                     default:
                         throw new Exception("The following type is unhandled: " + AMODataType.ToString());
                 }

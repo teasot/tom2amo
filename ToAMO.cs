@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using AMO = Microsoft.AnalysisServices;
 using TOM = Microsoft.AnalysisServices.Tabular;
-namespace TOMtoAMO
+namespace TOM2AMO
 {
     /* Based on AMO2Tabular (https://github.com/juanpablojofre/tabularamo/), which for all its flaws, was the first attempt at finding 
      * a way to programatically create tabular models. 

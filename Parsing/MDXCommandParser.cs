@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace TOMtoAMO.Parsing
+namespace TOM2AMO.Parsing
 {
     public static class MDXCommandParser
     {

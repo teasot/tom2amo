@@ -1,5 +1,5 @@
 ﻿using TOM = Microsoft.AnalysisServices.Tabular;
-namespace TOMtoAMO.File
+namespace TOM2AMO.File
 {
     public static class TOMFile
     {

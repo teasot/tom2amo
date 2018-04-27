@@ -1,6 +1,6 @@
 ﻿using AMO = Microsoft.AnalysisServices;
 using TOM = Microsoft.AnalysisServices.Tabular;
-namespace TOMtoAMO
+namespace TOM2AMO
 {
     public static class RelationshipHelper
     {

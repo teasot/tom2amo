@@ -1,10 +1,10 @@
 ﻿using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using System.Linq;
-using TOMtoAMO.Parsing;
+using TOM2AMO.Parsing;
 using AMO = Microsoft.AnalysisServices;
 using TOM = Microsoft.AnalysisServices.Tabular;
-namespace TOMtoAMO
+namespace TOM2AMO
 {
     public static class ToTOM
     {

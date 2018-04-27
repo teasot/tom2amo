@@ -1,6 +1,6 @@
 ﻿using AMO = Microsoft.AnalysisServices;
 using TOM = Microsoft.AnalysisServices.Tabular;
-namespace TOMtoAMO
+namespace TOM2AMO
 {
     public static class TranslationHelper
     {
@@ -19,11 +19,20 @@ namespace TOMtoAMO
         {
             AMO.Translation AMOTranslation = new AMO.Translation
             {
-                Language = GetLCIDFromCultureName(TOMCulture.Name),
-                Caption = TOMCulture.ObjectTranslations[TOMObject, TOM.TranslatedProperty.Caption]?.Value,
-                Description = TOMCulture.ObjectTranslations[TOMObject, TOM.TranslatedProperty.Description]?.Value,
-                DisplayFolder = TOMCulture.ObjectTranslations[TOMObject, TOM.TranslatedProperty.DisplayFolder]?.Value
+                Language = GetLCIDFromCultureName(TOMCulture.Name)
             };
+
+            //Caption (i.e. Name)
+            if (TOMCulture.ObjectTranslations[TOMObject, TOM.TranslatedProperty.Caption] != null)
+                AMOTranslation.Caption = TOMCulture.ObjectTranslations[TOMObject, TOM.TranslatedProperty.Caption].Value;
+
+            //Description
+            if (TOMCulture.ObjectTranslations[TOMObject, TOM.TranslatedProperty.Description] != null)
+                AMOTranslation.Description = TOMCulture.ObjectTranslations[TOMObject, TOM.TranslatedProperty.Description].Value;
+            
+            //Display Folder
+            if (TOMCulture.ObjectTranslations[TOMObject, TOM.TranslatedProperty.DisplayFolder] != null)
+                AMOTranslation.DisplayFolder = TOMCulture.ObjectTranslations[TOMObject, TOM.TranslatedProperty.DisplayFolder].Value;
 
             // If translation has no properties, it does not exist. 
             // As such, return null unless it has at least one valid property

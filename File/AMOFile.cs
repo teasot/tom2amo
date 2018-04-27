@@ -1,5 +1,5 @@
 ﻿using AMO = Microsoft.AnalysisServices;
-namespace TOMtoAMO.File
+namespace TOM2AMO.File
 {
     public static class AMOFile
     {
@@ -24,11 +24,23 @@ namespace TOMtoAMO.File
         /// <param name="Database">The database to serialise</param>
         public static void WriteToFile(string FileLocation, AMO.Database Database)
         {
-            using (System.Xml.XmlWriter Writer = System.Xml.XmlWriter.Create(FileLocation))
+            System.IO.File.WriteAllText(FileLocation, GetSerialisedXMLString(Database));
+        }
+        
+        public static string GetSerialisedXMLString(AMO.Database AMODatabase)
+        {
+            using (var StringWriter = new System.IO.StringWriter())
             {
-                AMO.Utils.Serialize(Writer, Database, false);
+                using (var XMLWriter = System.Xml.XmlWriter.Create(StringWriter, new System.Xml.XmlWriterSettings{
+                    Indent = true,
+                    IndentChars = "\t",
+                    NewLineOnAttributes = true
+                }))
+                {
+                    AMO.Utils.Serialize(XMLWriter, AMODatabase, false);
+                }
+                return StringWriter.ToString();
             }
         }
-
     }
 }

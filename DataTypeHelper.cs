@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Data.OleDb;
 using AMO = Microsoft.AnalysisServices;
 using TOM = Microsoft.AnalysisServices.Tabular;
@@ -29,6 +29,8 @@ namespace TOM2AMO
                         return OleDbType.BigInt;
                     case TOM.DataType.Variant:
                         return OleDbType.Variant;
+                    case TOM.DataType.Unknown:
+                        return OleDbType.Empty;
                     default:
                         throw new Exception("The following type is unhandled: " + TOMDataType.ToString());
                 }

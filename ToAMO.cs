@@ -18,6 +18,8 @@ namespace TOM2AMO
         const int SQL2012RTM = 1100;
         const int SQL2012SP1 = 1103;
         const string MDXScriptName = "MdxScript";
+        public const int TABULAR_IMAGE_MAX_SIZE = 0x4000000;
+        public const int TABULAR_STRING_MAX_SIZE = 0x20000;
         //TODO: Add direct query support
         /* Complete feature list, to be noted when complete support added
          *  - Database
@@ -319,87 +321,89 @@ namespace TOM2AMO
                  */
 
                 #region Add Columns
+
+                AMO.MeasureGroup MeasureGroup = Cube.MeasureGroups[TOMTable.Name];
+                AMO.DegenerateMeasureGroupDimension DegenerateMeasureGroupDimension = (AMO.DegenerateMeasureGroupDimension)MeasureGroup.Dimensions[TOMTable.Name];
+
                 foreach (TOM.Column TOMColumn in TOMTable.Columns)
                 {
+                    //If RowNumber column, skip
+                    if (TOMColumn.Type == TOM.ColumnType.RowNumber)
+                        continue;
 
-                    switch (TOMColumn.Type)
-                    {
-                        case TOM.ColumnType.Data:
-                            //Add the DataColumn corresponding to the SourceColumn, if it does not already exist
-                            TOM.DataColumn TOMDataColumn = (TOM.DataColumn)TOMColumn;
-                            if (!SchemaTable.Columns.Contains(TOMDataColumn.SourceColumn))
-                                SchemaTable.Columns.Add(new System.Data.DataColumn(((TOM.DataColumn)TOMColumn).SourceColumn));
+                    //If not data or calculated column, throw an exception - we cannot handle this
+                    if (TOMColumn.Type != TOM.ColumnType.Calculated && TOMColumn.Type != TOM.ColumnType.Data)
+                        throw new Exception("Cannot handle column '{0}'[{1}] which is not a calculated or data column");
 
-                            System.Data.OleDb.OleDbType ColumnDataType = DataTypeHelper.ToOleDbType(TOMDataColumn.DataType);
-                            AMO.DimensionAttribute NormalAttribute = AMODatabase.Dimensions[TOMTable.Name].Attributes.Add(TOMDataColumn.Name, TOMDataColumn.Name);
-                            NormalAttribute.Usage = AMO.AttributeUsage.Regular;
-                            NormalAttribute.KeyUniquenessGuarantee = false;
-                            NormalAttribute.KeyColumns.Add(new AMO.DataItem(SchemaTable.TableName, SchemaTable.Columns[TOMDataColumn.SourceColumn].ColumnName, ColumnDataType));
-                            NormalAttribute.KeyColumns[0].Source = new AMO.ColumnBinding(SchemaTable.TableName, SchemaTable.Columns[TOMDataColumn.SourceColumn].ColumnName);
-                            NormalAttribute.KeyColumns[0].NullProcessing = AMO.NullProcessing.Preserve;
-                            NormalAttribute.NameColumn = new AMO.DataItem(SchemaTable.TableName, SchemaTable.Columns[TOMDataColumn.SourceColumn].ColumnName, System.Data.OleDb.OleDbType.WChar);
-                            NormalAttribute.NameColumn.Source = new AMO.ColumnBinding(SchemaTable.TableName, SchemaTable.Columns[TOMDataColumn.SourceColumn].ColumnName);
-                            NormalAttribute.NameColumn.NullProcessing = AMO.NullProcessing.ZeroOrBlank;
-                            NormalAttribute.OrderBy = AMO.OrderBy.Key;
-                            AMO.AttributeRelationship NormalAttributeRelationship = AMODatabase.Dimensions[TOMTable.Name].Attributes[RowNumberColumnName].AttributeRelationships.Add(NormalAttribute.ID);
+                    //Get common values
+                    AMO.NullProcessing NullProcessing = AMO.NullProcessing.Preserve;
+                    if (TOMColumn.IsKey && TOMColumn.Type == TOM.ColumnType.Data)
+                        NullProcessing = AMO.NullProcessing.Error;
 
-                            NormalAttribute.AttributeHierarchyVisible = !TOMDataColumn.IsHidden;
-                            NormalAttribute.Description = TOMDataColumn.Description;
-                            NormalAttribute.AttributeHierarchyDisplayFolder = TOMDataColumn.DisplayFolder;
-                            //Add Translations to the CalculatedAttribute
-                            foreach (TOM.Culture TOMCulture in TOMModel.Cultures)
-                                using (AMO.Translation AMOTranslation = TranslationHelper.GetTranslation(TOMCulture, TOMColumn))
-                                    if (AMOTranslation != null)
-                                        NormalAttribute.Translations.Add(new AMO.AttributeTranslation { Caption = AMOTranslation.Caption, Description = AMOTranslation.Description, DisplayFolder = AMOTranslation.DisplayFolder });
+                    System.Data.OleDb.OleDbType ColumnDataType = DataTypeHelper.ToOleDbType(TOMColumn.DataType);
 
-                            NormalAttributeRelationship.Cardinality = AMO.Cardinality.Many;
-                            NormalAttributeRelationship.OverrideBehavior = AMO.OverrideBehavior.None;
-                            break;
-                        case TOM.ColumnType.Calculated:
-                            TOM.CalculatedColumn TOMCalculatedColumn = (TOM.CalculatedColumn)TOMColumn;
-                            System.Data.OleDb.OleDbType CalculatedColumnDataType = DataTypeHelper.ToOleDbType(TOMColumn.DataType);
+                    //If DataColumn, add the DataColumn corresponding to the SourceColumn, if it does not already exist
+                    if (TOMColumn.Type == TOM.ColumnType.Data)
+                        if (!SchemaTable.Columns.Contains(((TOM.DataColumn)TOMColumn).SourceColumn))
+                            SchemaTable.Columns.Add(new System.Data.DataColumn(((TOM.DataColumn)TOMColumn).SourceColumn));
 
-                            //Add Attribute to the Dimension
-                            AMO.Dimension dim = AMODatabase.Dimensions[TOMTable.Name];
-                            AMO.DimensionAttribute CalculatedAttribute = dim.Attributes.Add(TOMCalculatedColumn.Name, TOMCalculatedColumn.Name);
-                            CalculatedAttribute.Usage = AMO.AttributeUsage.Regular;
-                            CalculatedAttribute.KeyUniquenessGuarantee = false;
+                    string DataItemColumnName = TOMColumn.Type == TOM.ColumnType.Data ? ((TOM.DataColumn)TOMColumn).SourceColumn : TOMColumn.Name;
 
-                            CalculatedAttribute.KeyColumns.Add(new AMO.DataItem(TOMTable.Name, TOMCalculatedColumn.Name, CalculatedColumnDataType));
-                            CalculatedAttribute.KeyColumns[0].Source = new AMO.ExpressionBinding(TOMCalculatedColumn.Expression);
-                            CalculatedAttribute.KeyColumns[0].NullProcessing = AMO.NullProcessing.Preserve;
-                            CalculatedAttribute.NameColumn = new AMO.DataItem(TOMTable.Name, TOMCalculatedColumn.Name, System.Data.OleDb.OleDbType.WChar);
-                            CalculatedAttribute.NameColumn.Source = new AMO.ExpressionBinding(TOMCalculatedColumn.Expression);
-                            CalculatedAttribute.NameColumn.NullProcessing = AMO.NullProcessing.ZeroOrBlank;
+                    //Create Dimension Attribute
+                    AMO.Dimension Dimension = AMODatabase.Dimensions[TOMTable.Name];
+                    AMO.DimensionAttribute DimensionAttribute = Dimension.Attributes.Add(TOMColumn.Name, TOMColumn.Name);
+                    DimensionAttribute.Usage = AMO.AttributeUsage.Regular;
+                    DimensionAttribute.KeyUniquenessGuarantee = false;
+                    DimensionAttribute.OrderBy = AMO.OrderBy.Key;
 
-                            CalculatedAttribute.OrderBy = AMO.OrderBy.Key;
-                            AMO.AttributeRelationship currentAttributeRelationship = dim.Attributes[RowNumberColumnName].AttributeRelationships.Add(CalculatedAttribute.ID);
+                    //Create Binding
+                    AMO.Binding Binding;
+                    if (TOMColumn.Type == TOM.ColumnType.Data)
+                        Binding = new AMO.ColumnBinding(TOMTable.Name, SchemaTable.Columns[((TOM.DataColumn)TOMColumn).SourceColumn].ColumnName);
+                    else
+                        Binding = new AMO.ExpressionBinding(((TOM.CalculatedColumn)TOMColumn).Expression);
 
-                            CalculatedAttribute.AttributeHierarchyVisible = !TOMCalculatedColumn.IsHidden;
-                            CalculatedAttribute.Description = TOMCalculatedColumn.Description;
-                            CalculatedAttribute.AttributeHierarchyDisplayFolder = TOMCalculatedColumn.DisplayFolder;
-                            //Add Translations to the CalculatedAttribute
-                            //Loop through each culture, and add the translation associated with that culture.
-                            foreach (TOM.Culture TOMCulture in TOMModel.Cultures)
-                                using (AMO.Translation AMOTranslation = TranslationHelper.GetTranslation(TOMCulture, TOMColumn))
-                                    if (AMOTranslation != null)
-                                        CalculatedAttribute.Translations.Add(new AMO.AttributeTranslation { Caption = AMOTranslation.Caption, Description = AMOTranslation.Description, DisplayFolder = AMOTranslation.DisplayFolder });
+                    //Create Key Column
+                    DimensionAttribute.KeyColumns.Add(new AMO.DataItem(TOMTable.Name, DataItemColumnName, ColumnDataType));
+                    DimensionAttribute.KeyColumns[0].Source = Binding;
+                    DimensionAttribute.KeyColumns[0].NullProcessing = NullProcessing;
 
-                            currentAttributeRelationship.Cardinality = AMO.Cardinality.Many;
-                            currentAttributeRelationship.OverrideBehavior = AMO.OverrideBehavior.None;
+                    //Add name column
+                    DimensionAttribute.NameColumn = new AMO.DataItem(TOMTable.Name, DataItemColumnName, System.Data.OleDb.OleDbType.WChar);
+                    DimensionAttribute.NameColumn.Source = Binding.Clone();
+                    DimensionAttribute.NameColumn.NullProcessing = AMO.NullProcessing.ZeroOrBlank;
 
-                            //Add CalculatedColumn as attribute to the MeasureGroup
-                            AMO.MeasureGroup mg = Cube.MeasureGroups[TOMTable.Name];
-                            AMO.DegenerateMeasureGroupDimension currentMGDim = (AMO.DegenerateMeasureGroupDimension)mg.Dimensions[TOMTable.Name];
-                            AMO.MeasureGroupAttribute mga = new AMO.MeasureGroupAttribute(TOMCalculatedColumn.Name);
+                    //Attribute Relationship with RowNumber Attribute
+                    AMO.AttributeRelationship NormalAttributeRelationship = Dimension.Attributes[RowNumberColumnName].AttributeRelationships.Add(DimensionAttribute.ID);
+                    NormalAttributeRelationship.Cardinality = AMO.Cardinality.Many;
+                    NormalAttributeRelationship.OverrideBehavior = AMO.OverrideBehavior.None;
 
-                            mga.KeyColumns.Add(new AMO.DataItem(TOMTable.Name, TOMCalculatedColumn.Name, System.Data.OleDb.OleDbType.Empty));
-                            mga.KeyColumns[0].Source = new AMO.ExpressionBinding(TOMCalculatedColumn.Expression);
-                            currentMGDim.Attributes.Add(mga);
-                            break;
-                        default:
-                            throw new System.NotImplementedException(string.Format("Cannot deploy Column of type {0}", TOMColumn.Type.ToString()));
-                    }
+                    //Create MeasureGroupAttribute
+                    AMO.MeasureGroupAttribute MeasureGroupAttribute = new AMO.MeasureGroupAttribute(TOMColumn.Name);
+                    MeasureGroupAttribute.KeyColumns.Add(new AMO.DataItem(SchemaTable.TableName, DataItemColumnName, ColumnDataType));
+                    MeasureGroupAttribute.KeyColumns[0].NullProcessing = NullProcessing;
+                    
+                    if (ColumnDataType == System.Data.OleDb.OleDbType.Binary)
+                        MeasureGroupAttribute.KeyColumns[0].DataSize = TABULAR_IMAGE_MAX_SIZE;
+                    if (ColumnDataType == System.Data.OleDb.OleDbType.WChar)
+                        MeasureGroupAttribute.KeyColumns[0].DataSize = TABULAR_STRING_MAX_SIZE;
+
+                    if (TOMColumn.Type == TOM.ColumnType.Calculated)
+                        MeasureGroupAttribute.KeyColumns[0].Source = Binding.Clone();
+                    DegenerateMeasureGroupDimension.Attributes.Add(MeasureGroupAttribute);
+                    
+
+                    //Set Visibility, Description, Display Folder
+                    DimensionAttribute.AttributeHierarchyVisible = !TOMColumn.IsHidden;
+                    DimensionAttribute.Description = TOMColumn.Description;
+                    DimensionAttribute.AttributeHierarchyDisplayFolder = TOMColumn.DisplayFolder;
+
+                    //Add Translations to the CalculatedAttribute
+                    foreach (TOM.Culture TOMCulture in TOMModel.Cultures)
+                        using (AMO.Translation AMOTranslation = TranslationHelper.GetTranslation(TOMCulture, TOMColumn))
+                            if (AMOTranslation != null)
+                                DimensionAttribute.Translations.Add(new AMO.AttributeTranslation { Caption = AMOTranslation.Caption, Description = AMOTranslation.Description, DisplayFolder = AMOTranslation.DisplayFolder });
+
                 }
                 #endregion
 

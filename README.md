@@ -7,6 +7,18 @@ This library aims to convert 1103, and possibly 1100, models to the 1200 and abo
 
 In addition, the option to re-add compatibility with Visual Studio will be included.
 
+Progress:
+
+AMO to TOM:
+
+- Currently almost complete - in fact technically complete as far as I am concerned
+- BIDS Compatibility - checking
+
+TOM to AMO:
+
+- So far, everything but relationships works as far as I know
+- On hold until I regain time to complete this aspect
+
 Issues found in Tabular while creating this:
 
 - In 1103, if a measure "A" and "A]" exist in the same model, and you add "A]" to a perspective, it will not add "A]", and will instead add "A". This issue does not exist in 1200.
